@@ -1,0 +1,295 @@
+index.html 
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Ultimate Driving Simulator</title>
+</head>
+<body>
+  <h1>Ultimate Driving Simulator</h1>
+  <p>Game loading...</p>
+</body>
+</html>
+import React, { useEffect, useRef, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+
+// Simple multiplayer simulation (local players)
+const COLORS = ["red", "blue", "green", "yellow"];
+
+export default function UltimateDrivingSimulator() {
+  const canvasRef = useRef(null);
+  const [coins, setCoins] = useState(0);
+  const [dailyCoins, setDailyCoins] = useState(0);
+  const [selectedCar, setSelectedCar] = useState("Starter Car");
+  const [ownedCars, setOwnedCars] = useState(["Starter Car"]);
+  const [players, setPlayers] = useState([
+    { id: 1, x: 200, y: 200, color: "red" },
+    { id: 2, x: 300, y: 300, color: "blue" },
+  ]);
+
+  const [dailyMission, setDailyMission] = useState(null);
+  const [weeklyMission, setWeeklyMission] = useState(null);
+  const [missionProgress, setMissionProgress] = useState({ daily: 0, weekly: 0 });
+
+  // Mobile Controls
+  const [touch, setTouch] = useState({
+    up: false,
+    down: false,
+    left: false,
+    right: false,
+  });
+
+  const cars = [
+    { name: "Starter Car", price: 0, speed: 2 },
+    { name: "Sports Car", price: 5000, speed: 3 },
+    { name: "Super Car", price: 5000, speed: 4 },
+    { name: "Hyper Car", price: 5000, speed: 5 },
+    { name: "Muscle Car", price: 5000, speed: 3.2 },
+    { name: "Drift Car", price: 5000, speed: 3.5 },
+    { name: "Electric Car", price: 5000, speed: 3.8 },
+    { name: "Luxury Car", price: 5000, speed: 3.1 },
+    { name: "Offroad Truck", price: 5000, speed: 2.8 },
+    { name: "Race Car", price: 5000, speed: 5.5 },
+    { name: "Formula Car", price: 5000, speed: 6 },
+    { name: "Police Car", price: 5000, speed: 4.5 }
+  ];
+
+  const player = useRef({ x: 200, y: 200, speed: 2 });
+  const keys = useRef({});
+  const coinsOnMap = useRef([]);
+
+  // Daily limit reset
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const savedDate = localStorage.getItem("dailyDate");
+
+    if (savedDate !== today) {
+      localStorage.setItem("dailyDate", today);
+      localStorage.setItem("dailyCoins", 0);
+      setDailyCoins(0);
+    } else {
+      setDailyCoins(parseInt(localStorage.getItem("dailyCoins") || "0"));
+    }
+
+    setCoins(parseInt(localStorage.getItem("coins") || "0"));
+  }, []);
+
+  // Missions
+  useEffect(() => {
+    const daily = {
+      text: "Collect 300 coins",
+      goal: 300,
+      reward: 500,
+    };
+
+    const weekly = {
+      text: "Drive 2000 distance",
+      goal: 2000,
+      reward: 2000,
+    };
+
+    setDailyMission(daily);
+    setWeeklyMission(weekly);
+  }, []);
+
+  // Spawn coins
+  useEffect(() => {
+    for (let i = 0; i < 20; i++) {
+      coinsOnMap.current.push({
+        x: Math.random() * 800,
+        y: Math.random() * 600,
+      });
+    }
+  }, []);
+
+  // Controls
+  useEffect(() => {
+    const handleKeyDown = (e) => (keys.current[e.key] = true);
+    const handleKeyUp = (e) => (keys.current[e.key] = false);
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
+
+  // Game Loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    const update = () => {
+      const car = cars.find((c) => c.name === selectedCar);
+      player.current.speed = car.speed;
+
+      if (keys.current["ArrowUp"] || touch.up) player.current.y -= player.current.speed;
+      if (keys.current["ArrowDown"] || touch.down) player.current.y += player.current.speed;
+      if (keys.current["ArrowLeft"] || touch.left) player.current.x -= player.current.speed;
+      if (keys.current["ArrowRight"] || touch.right) player.current.x += player.current.speed;
+
+      // Collect coins
+      coinsOnMap.current = coinsOnMap.current.filter((coin) => {
+        const dx = coin.x - player.current.x;
+        const dy = coin.y - player.current.y;
+
+        if (Math.sqrt(dx * dx + dy * dy) < 20 && dailyCoins < 1000) {
+          const newCoins = coins + 50;
+          const newDaily = dailyCoins + 50;
+
+          setCoins(newCoins);
+          setDailyCoins(newDaily);
+
+          setMissionProgress((prev) => ({
+            ...prev,
+            daily: prev.daily + 50,
+          }));
+
+          localStorage.setItem("coins", newCoins);
+          localStorage.setItem("dailyCoins", newDaily);
+
+          return false;
+        }
+        return true;
+      });
+    };
+
+    const draw = () => {
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // World Map style background
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(50, 50, 700, 500);
+
+      // Coins
+      ctx.fillStyle = "gold";
+      coinsOnMap.current.forEach((coin) => {
+        ctx.beginPath();
+        ctx.arc(coin.x, coin.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Multiplayer cars
+      players.forEach((p) => {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 20, 10);
+      });
+
+      // Player car
+      ctx.fillStyle = "red";
+      ctx.fillRect(player.current.x, player.current.y, 20, 10);
+    };
+
+    const loop = () => {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    };
+
+    loop();
+  }, [coins, dailyCoins, selectedCar]);
+
+  const buyCar = (car) => {
+    if (coins >= car.price && !ownedCars.includes(car.name)) {
+      const newCoins = coins - car.price;
+      setCoins(newCoins);
+      setOwnedCars([...ownedCars, car.name]);
+      localStorage.setItem("coins", newCoins);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-4">
+      <motion.h1
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-3xl font-bold"
+      >
+        Ultimate Driving Simulator
+      </motion.h1>
+
+      <Card className="rounded-2xl shadow-lg">
+        <CardContent className="p-4">
+          <div className="flex justify-between">
+            <div>Coins: {coins}</div>
+            <div>Daily Limit: {dailyCoins}/1000</div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <canvas
+        ref={canvasRef}
+        width={800}
+        height={600}
+        className="border rounded-2xl"
+      />
+
+      {/* Mobile Controls */}
+      <div className="grid grid-cols-3 gap-2 max-w-xs mt-4">
+        <div></div>
+        <Button
+          onTouchStart={() => setTouch((t) => ({ ...t, up: true }))}
+          onTouchEnd={() => setTouch((t) => ({ ...t, up: false }))}
+        >⬆️</Button>
+        <div></div>
+
+        <Button
+          onTouchStart={() => setTouch((t) => ({ ...t, left: true }))}
+          onTouchEnd={() => setTouch((t) => ({ ...t, left: false }))}
+        >⬅️</Button>
+        <Button
+          onTouchStart={() => setTouch((t) => ({ ...t, down: true }))}
+          onTouchEnd={() => setTouch((t) => ({ ...t, down: false }))}
+        >⬇️</Button>
+        <Button
+          onTouchStart={() => setTouch((t) => ({ ...t, right: true }))}
+          onTouchEnd={() => setTouch((t) => ({ ...t, right: false }))}
+        >➡️</Button>
+      </div>
+
+      <Card className="rounded-2xl shadow-lg">
+        <CardContent className="p-4">
+          <h2 className="text-xl mb-2">Cars</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {cars.map((car) => (
+              <div key={car.name} className="flex gap-2">
+                <Button
+                  onClick={() =>
+                    ownedCars.includes(car.name)
+                      ? setSelectedCar(car.name)
+                      : buyCar(car)
+                  }
+                >
+                  {ownedCars.includes(car.name)
+                    ? `Drive ${car.name}`
+                    : `${car.name} - ${car.price} coins`}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Missions */}
+      <Card className="rounded-2xl shadow-lg">
+        <CardContent className="p-4">
+          <h2 className="text-xl mb-2">Missions</h2>
+          {dailyMission && (
+            <div className="mb-2">
+              🌞 Daily: {dailyMission.text} ({missionProgress.daily}/{dailyMission.goal})
+            </div>
+          )}
+          {weeklyMission && (
+            <div>
+              📅 Weekly: {weeklyMission.text} ({missionProgress.weekly}/{weeklyMission.goal})
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
